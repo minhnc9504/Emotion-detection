@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emotion Detection Deployment</title>
+    <style>
+        :root {
+            --primary: #6C63FF;
+            --primary-dark: #5A52D5;
+            --bg: #0f0f1a;
+            --card-bg: #1a1a2e;
+            --card-border: #2a2a4a;
+            --text: #e0e0e0;
+            --text-muted: #8888aa;
+            --success: #4CAF50;
+            --danger: #e74c3c;
+            --warning: #f39c12;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        .navbar {
+            background: var(--card-bg);
+            border-bottom: 1px solid var(--card-border);
+            padding: 1rem 2rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .navbar-icon {
+            font-size: 1.8rem;
+        }
+
+        .navbar h1 {
+            font-size: 1.3rem;
+            font-weight: 600;
+            background: linear-gradient(135deg, var(--primary), #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .navbar .badge {
+            margin-left: auto;
+            background: var(--primary);
+            color: white;
+            padding: 0.3rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 2rem 1.5rem;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 2rem;
+            border-bottom: 1px solid var(--card-border);
+            padding-bottom: 1rem;
+        }
+
+        .tab-btn {
+            background: none;
+            border: 1px solid var(--card-border);
+            color: var(--text-muted);
+            padding: 0.7rem 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.95rem;
+            font-weight: 500;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .tab-btn:hover {
+            border-color: var(--primary);
+            color: var(--text);
+        }
+
+        .tab-btn.active {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: white;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .webcam-section {
+            display: grid;
+            grid-template-columns: 1fr 340px;
+            gap: 1.5rem;
+            align-items: start;
+        }
+
+        @media (max-width: 768px) {
+            .webcam-section {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .camera-wrapper {
+            position: relative;
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            overflow: hidden;
+            aspect-ratio: 4/3;
+        }
+
+        #webcam {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+            border-radius: 16px;
+        }
+
+        #webcamCanvas {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        .cam-overlay {
+            position: absolute;
+            bottom: 0; left: 0; right: 0;
+            background: linear-gradient(transparent, rgba(0,0,0,0.7));
+            padding: 1.5rem 1rem 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .cam-status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.85rem;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #888;
+        }
+
+        .status-dot.live { background: var(--success); box-shadow: 0 0 6px var(--success); }
+        .status-dot.detecting { background: var(--warning); box-shadow: 0 0 6px var(--warning); animation: pulse 1s infinite; }
+        .status-dot.off { background: var(--danger); }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        .cam-controls {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .cam-btn {
+            background: rgba(255,255,255,0.1);
+            border: none;
+            color: white;
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .cam-btn:hover { background: rgba(255,255,255,0.2); }
+        .cam-btn.stop { background: var(--danger); }
+        .cam-btn.stop:hover { background: #c0392b; }
+
+        .emotion-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .panel-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 1.2rem;
+        }
+
+        .panel-card h3 {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
+            margin-bottom: 1rem;
+        }
+
+        .primary-emotion {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 0.8rem;
+            background: rgba(108, 99, 255, 0.08);
+            border: 1px solid rgba(108, 99, 255, 0.2);
+            border-radius: 12px;
+        }
+
+        .primary-emotion .emoji {
+            font-size: 2.5rem;
+            line-height: 1;
+        }
+
+        .primary-emotion .info .emotion-name {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 0.2rem;
+        }
+
+        .primary-emotion .info .confidence {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .no-detection {
+            text-align: center;
+            color: var(--text-muted);
+            padding: 2rem 1rem;
+            font-size: 0.9rem;
+        }
+
+        .no-detection .icon {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            opacity: 0.4;
+        }
+
+        .emotion-bars {
+            display: flex;
+            flex-direction: column;
+            gap: 0.6rem;
+            margin-top: 0.5rem;
+        }
+
+        .emotion-bar-row {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+        }
+
+        .emotion-bar-row .label {
+            font-size: 0.8rem;
+            width: 80px;
+            color: var(--text-muted);
+            text-align: right;
+            flex-shrink: 0;
+        }
+
+        .bar-track {
+            flex: 1;
+            height: 8px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .bar-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.5s ease;
+        }
+
+        .emotion-bar-row .pct {
+            font-size: 0.75rem;
+            width: 38px;
+            text-align: right;
+            color: var(--text-muted);
+        }
+
+        .upload-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+
+        @media (max-width: 700px) {
+            .upload-section { grid-template-columns: 1fr; }
+        }
+
+        .upload-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 1.5rem;
+        }
+
+        .upload-card h3 {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
+            margin-bottom: 1rem;
+        }
+
+        .drop-zone {
+            border: 2px dashed var(--card-border);
+            border-radius: 12px;
+            padding: 2.5rem 1.5rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+        }
+
+        .drop-zone:hover, .drop-zone.dragover {
+            border-color: var(--primary);
+            background: rgba(108, 99, 255, 0.05);
+        }
+
+        .drop-zone .icon { font-size: 2.5rem; margin-bottom: 0.5rem; }
+        .drop-zone .text { font-size: 0.9rem; color: var(--text-muted); }
+        .drop-zone input[type="file"] {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .preview-card {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .preview-img-wrapper {
+            background: rgba(255,255,255,0.03);
+            border-radius: 12px;
+            overflow: hidden;
+            display: none;
+            position: relative;
+        }
+
+        .preview-img-wrapper.visible { display: block; }
+
+        .preview-img-wrapper img {
+            width: 100%;
+            display: block;
+            border-radius: 12px;
+        }
+
+        .preview-result {
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            padding: 0.8rem;
+            background: rgba(108, 99, 255, 0.08);
+            border: 1px solid rgba(108, 99, 255, 0.2);
+            border-radius: 10px;
+        }
+
+        .preview-result .emoji { font-size: 1.8rem; }
+        .preview-result .info .name { font-weight: 600; font-size: 0.95rem; }
+        .preview-result .info .conf { font-size: 0.8rem; color: var(--text-muted); }
+
+        .api-section {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 1.5rem;
+        }
+
+        .api-section h3 {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
+            margin-bottom: 1rem;
+        }
+
+        .endpoint {
+            background: rgba(0,0,0,0.3);
+            border: 1px solid var(--card-border);
+            border-radius: 10px;
+            padding: 1rem 1.2rem;
+            margin-bottom: 0.8rem;
+        }
+
+        .endpoint .method {
+            display: inline-block;
+            padding: 0.2rem 0.6rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            margin-bottom: 0.4rem;
+        }
+
+        .method.post { background: #27ae60; color: white; }
+        .method.get { background: #2980b9; color: white; }
+
+        .endpoint .url {
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+            color: #a78bfa;
+        }
+
+        .endpoint .desc {
+            margin-top: 0.4rem;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 10px;
+            padding: 1rem 1.5rem;
+            font-size: 0.9rem;
+            z-index: 1000;
+            transform: translateY(120%);
+            transition: transform 0.3s;
+            max-width: 300px;
+        }
+
+        .toast.show { transform: translateY(0); }
+        .toast.success { border-color: var(--success); }
+        .toast.error { border-color: var(--danger); }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar">
+        <span class="navbar-icon">🧠</span>
+        <h1>Emotion Detection API</h1>
+        <span class="badge">v1.0 — Deployed</span>
+    </nav>
+
+    <div class="container">
+
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="webcam" onclick="switchTab('webcam')">
+                📷 &nbsp;Webcam
+            </button>
+            <button class="tab-btn" data-tab="upload" onclick="switchTab('upload')">
+                📁 &nbsp;Image Upload
+            </button>
+            <button class="tab-btn" data-tab="api" onclick="switchTab('api')">
+                🔌 &nbsp;API Docs
+            </button>
+        </div>
+
+        <!-- Webcam Tab -->
+        <div class="tab-content active" id="tab-webcam">
+            <div class="webcam-section">
+                <div class="camera-wrapper">
+                    <video id="webcam" autoplay playsinline muted></video>
+                    <canvas id="webcamCanvas"></canvas>
+                    <div class="cam-overlay">
+                        <div class="cam-status">
+                            <div class="status-dot off" id="camDot"></div>
+                            <span id="camStatusText">Camera Off</span>
+                        </div>
+                        <div class="cam-controls">
+                            <button class="cam-btn" id="toggleCam" title="Toggle Camera" onclick="toggleCamera()">▶</button>
+                            <button class="cam-btn stop" id="stopCam" title="Stop" onclick="stopCamera()" style="display:none">■</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="emotion-panel">
+                    <div class="panel-card">
+                        <h3>Primary Emotion</h3>
+                        <div id="primaryEmotion">
+                            <div class="no-detection">
+                                <div class="icon">👤</div>
+                                <p>No face detected yet.<br>Start the webcam to begin.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="panel-card">
+                        <h3>Emotion Probabilities</h3>
+                        <div id="emotionBars" class="emotion-bars"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Upload Tab -->
+        <div class="tab-content" id="tab-upload">
+            <div class="upload-section">
+                <div class="upload-card">
+                    <h3>Upload Image</h3>
+                    <div class="drop-zone" id="dropZone">
+                        <div class="icon">🖼️</div>
+                        <div class="text">Drop an image here or click to browse<br><small style="color:#555">Supports JPG, PNG, WEBP</small></div>
+                        <input type="file" id="fileInput" accept="image/*" onchange="handleFile(this.files[0])">
+                    </div>
+                </div>
+
+                <div class="upload-card preview-card">
+                    <h3>Analysis Result</h3>
+                    <div class="preview-img-wrapper" id="previewWrapper">
+                        <img id="previewImg" alt="Preview">
+                    </div>
+                    <div id="uploadResult"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- API Tab -->
+        <div class="tab-content" id="tab-api">
+            <div class="api-section">
+                <h3>REST API Endpoints</h3>
+
+                <div class="endpoint">
+                    <div class="method get">GET</div>
+                    <div class="url">http://127.0.0.1:5000/health</div>
+                    <div class="desc">Health check — returns server status and model loading state</div>
+                </div>
+
+                <div class="endpoint">
+                    <div class="method post">POST</div>
+                    <div class="url">http://127.0.0.1:5000/api/detect</div>
+                    <div class="desc">Detect emotions from a base64-encoded image. Body: <code style="color:#a78bfa">{"image": "data:image/...,base64..."}</code></div>
+                </div>
+
+                <div class="endpoint">
+                    <div class="method post">POST</div>
+                    <div class="url">http://127.0.0.1:5000/api/upload</div>
+                    <div class="desc">Upload an image file directly. Form field: <code style="color:#a78bfa">image</code>. Returns annotated image.</div>
+                </div>
+
+                <div class="endpoint">
+                    <div class="method get">GET</div>
+                    <div class="url">http://127.0.0.1:5000/</div>
+                    <div class="desc">Serves the web interface for live emotion detection and image upload.</div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        // ── Tab switching ─────────────────────────────────
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
+            document.getElementById(`tab-${tab}`).classList.add('active');
+        }
+
+        // ── Camera ───────────────────────────────────────
+        let stream = null;
+        let camRunning = false;
+        let camInterval = null;
+        const emotionColors = {
+            'Angry': '#e74c3c', 'Disgust': '#27ae60', 'Fear': '#9b59b6',
+            'Happy': '#f1c40f', 'Sad': '#3498db', 'Surprise': '#e67e22', 'Neutral': '#95a5a6'
+        };
+
+        function setCamUI(running) {
+            document.getElementById('toggleCam').style.display = running ? 'none' : 'flex';
+            document.getElementById('stopCam').style.display = running ? 'flex' : 'none';
+            document.getElementById('camDot').className = 'status-dot ' + (running ? 'live' : 'off');
+            document.getElementById('camStatusText').textContent = running ? 'Camera Live' : 'Camera Off';
+        }
+
+        async function toggleCamera() {
+            const video = document.getElementById('webcam');
+            const canvas = document.getElementById('webcamCanvas');
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+                video.srcObject = stream;
+                await video.play();
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                camRunning = true;
+                setCamUI(true);
+                camInterval = setInterval(processFrame, 500);
+            } catch (err) {
+                showToast('Camera access denied or unavailable.', 'error');
+            }
+        }
+
+        function stopCamera() {
+            if (stream) {
+                stream.getTracks().forEach(t => t.stop());
+                stream = null;
+            }
+            if (camInterval) { clearInterval(camInterval); camInterval = null; }
+            document.getElementById('webcam').srcObject = null;
+            document.getElementById('webcamCanvas').getContext('2d').clearRect(0, 0, 9999, 9999);
+            camRunning = false;
+            setCamUI(false);
+        }
+
+        async function processFrame() {
+            const video = document.getElementById('webcam');
+            const canvas = document.getElementById('webcamCanvas');
+            if (!video.srcObject || video.readyState < 2) return;
+
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+
+            // Draw canvas
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0);
+
+            const blob = await new Promise(r => video.captureStream ? r(null) : canvas.toBlob(r, 'image/jpeg', 0.8));
+            if (!blob) return;
+
+            const formData = new FormData();
+            formData.append('image', blob, 'frame.jpg');
+
+            try {
+                const res = await fetch('/api/upload', { method: 'POST', body: formData });
+                const data = await res.json();
+                if (data.success && data.results && data.results.length > 0) {
+                    updateEmotionDisplay(data.results[0]);
+                    drawOverlay(ctx, data.results, canvas.width / video.videoWidth, canvas.height / video.videoHeight);
+                } else {
+                    clearEmotionDisplay();
+                }
+            } catch (e) {
+                clearEmotionDisplay();
+            }
+        }
+
+        function drawOverlay(ctx, results, sx, sy) {
+            ctx.strokeStyle = '#4CAF50';
+            ctx.lineWidth = 2;
+            results.forEach(r => {
+                ctx.strokeRect(r.x * sx, r.y * sy, r.w * sx, r.h * sy);
+                ctx.font = 'bold 14px sans-serif';
+                ctx.fillStyle = '#4CAF50';
+                ctx.fillText(`${r.emoji} ${r.emotion}`, r.x * sx, r.y * sy - 5);
+            });
+        }
+
+        function updateEmotionDisplay(result) {
+            document.getElementById('camDot').className = 'status-dot detecting';
+            document.getElementById('camStatusText').textContent = 'Detecting...';
+
+            document.getElementById('primaryEmotion').innerHTML = `
+                <div class="primary-emotion" style="border-color: ${result.color}33; background: ${result.color}0d;">
+                    <div class="emoji">${result.emoji}</div>
+                    <div class="info">
+                        <div class="emotion-name" style="color: ${result.color}">${result.emotion}</div>
+                        <div class="confidence">Confidence: ${(result.confidence * 100).toFixed(1)}%</div>
+                    </div>
+                </div>`;
+
+            const bars = document.getElementById('emotionBars');
+            const emotions = Object.entries(result.all_probs)
+                .sort((a, b) => b[1] - a[1]);
+            bars.innerHTML = emotions.map(([emotion, prob]) => `
+                <div class="emotion-bar-row">
+                    <div class="label">${emotion}</div>
+                    <div class="bar-track">
+                        <div class="bar-fill" style="width: ${prob * 100}%; background: ${emotionColors[emotion]}"></div>
+                    </div>
+                    <div class="pct">${(prob * 100).toFixed(1)}%</div>
+                </div>`).join('');
+        }
+
+        function clearEmotionDisplay() {
+            document.getElementById('primaryEmotion').innerHTML = `
+                <div class="no-detection">
+                    <div class="icon">👤</div>
+                    <p>No face detected.<br>Position yourself in front of the camera.</p>
+                </div>`;
+            document.getElementById('emotionBars').innerHTML = '';
+        }
+
+        // ── Upload ───────────────────────────────────────
+        const dropZone = document.getElementById('dropZone');
+        dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+        dropZone.addEventListener('drop', e => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+        });
+
+        function handleFile(file) {
+            if (!file || !file.type.startsWith('image/')) {
+                showToast('Please select a valid image file.', 'error');
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                document.getElementById('previewImg').src = e.target.result;
+                document.getElementById('previewWrapper').classList.add('visible');
+
+                const formData = new FormData();
+                formData.append('image', file);
+
+                const res = await fetch('/api/upload', { method: 'POST', body: formData });
+                const data = await res.json();
+
+                if (data.success && data.results && data.results.length > 0) {
+                    const r = data.results[0];
+                    document.getElementById('uploadResult').innerHTML = `
+                        <div class="preview-result" style="border-color: ${r.color}33; background: ${r.color}0d;">
+                            <div class="emoji">${r.emoji}</div>
+                            <div class="info">
+                                <div class="name" style="color: ${r.color}">${r.emotion}</div>
+                                <div class="conf">${(r.confidence * 100).toFixed(1)}% confidence</div>
+                            </div>
+                        </div>`;
+                    showToast('Emotion detected successfully!', 'success');
+                } else {
+                    document.getElementById('uploadResult').innerHTML = `
+                        <div class="no-detection">
+                            <div class="icon">😕</div>
+                            <p>No face detected in the image.<br>Try another photo.</p>
+                        </div>`;
+                    showToast('No face detected.', 'error');
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // ── Toast ────────────────────────────────────────
+        function showToast(msg, type = '') {
+            const toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.className = 'toast ' + type + ' show';
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+    </script>
+</body>
+</html>
